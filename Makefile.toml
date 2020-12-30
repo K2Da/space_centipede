@@ -37,6 +37,8 @@ dependencies = ["build-native"]
 
 [tasks.serve]
 command = "basic-http-server"
+# ip a で調べる
+# args = ["-x", "-a", "192.168.0.24:4000"]
 args = ["-x"]
 dependencies = ["build-web", "basic-http-server"]
 

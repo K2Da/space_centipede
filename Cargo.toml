@@ -1,6 +1,6 @@
 [package]
 name = "bevy_app"
-version = "0.1.0"
+version = "0.4.0"
 authors = []
 edition = "2018"
 repository = "https://github.com/mrk-its/bevy_webgl2_app_template"
@@ -26,6 +26,7 @@ web = [
 bevy = {version="0.4.0", default-features=false}
 bevy_webgl2 = {version="0.4.0", optional=true}
 winit = {version = "0.24.0"}
+rand = "0.*"
 
 # [patch.'https://github.com/bevyengine/bevy']
 # bevy = {git = "https://github.com/bevyengine/bevy//", rev="841755aaf23acfd55b375c37390daeb302c5b30b", default-features=false}
