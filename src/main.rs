@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 // https://doc.rust-lang.org/reference/items/use-declarations.html#use-visibility
 // preludeの中身はpub useの羅列
+use crate::event::*;
 pub use constants::*;
 pub use util::*;
 

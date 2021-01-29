@@ -22,11 +22,10 @@ fn read_input_events_system(
     mouse_input: Res<Input<MouseButton>>,
     windows: Res<Windows>,
     mut cursor_state: ResMut<CursorState>,
-    cursor_moved_events: Res<Events<CursorMoved>>,
-    mut cursor_moved_reader: Local<EventReader<CursorMoved>>,
+    (events, mut reader): (Res<Events<CursorMoved>>, Local<EventReader<CursorMoved>>),
 ) {
     // cursorは左下が0, 0、Vec2は真ん中が0, 0
-    for event in cursor_moved_reader.iter(&cursor_moved_events) {
+    for event in reader.iter(&events) {
         cursor_state.screen_position = event.position;
     }
 

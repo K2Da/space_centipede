@@ -63,8 +63,7 @@ fn on_game_start(
     commands: &mut Commands,
     resources: Res<ModResources>,
     mut centipede_container: ResMut<CentipedeContainer>,
-    events: Res<Events<event::GameStart>>,
-    mut reader: Local<EventReader<event::GameStart>>,
+    (events, mut reader): (Res<Events<GameStart>>, Local<EventReader<GameStart>>),
 ) {
     for _ in reader.iter(&events) {
         centipede_container.centipede = Centipede::Alive(Alive::default(
@@ -84,8 +83,8 @@ fn on_game_start(
 
 fn on_game_over(
     commands: &mut Commands,
-    events: Res<Events<event::GameOver>>,
-    mut reader: Local<EventReader<event::GameOver>>,
+    events: Res<Events<GameOver>>,
+    mut reader: Local<EventReader<GameOver>>,
 ) {
     for event in reader.iter(&events) {
         commands.despawn(event.head_entity);

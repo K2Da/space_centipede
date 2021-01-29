@@ -11,8 +11,8 @@ impl Plugin for ModPlugin {
 
 fn head_and_gate_system(
     commands: &mut Commands,
-    mut through_gate_events: ResMut<Events<event::ThroughGate>>,
-    mut crush_gate_events: ResMut<Events<event::CrushPoll>>,
+    mut through_gate_events: ResMut<Events<ThroughGate>>,
+    mut crush_gate_events: ResMut<Events<CrushPoll>>,
     centipede_container: Res<CentipedeContainer>,
     head_query: Query<&GlobalTransform, With<head::Head>>,
     gate_query: Query<(Entity, &Children), With<gate::Gate>>,
@@ -41,7 +41,7 @@ fn head_and_gate_system(
                 // ここで消さないと次のフレームで再度衝突する
                 commands.despawn_recursive(gate);
                 // このイベント使ってないが
-                crush_gate_events.send(event::CrushPoll {});
+                crush_gate_events.send(CrushPoll {});
             }
         }
 
@@ -56,14 +56,14 @@ fn head_and_gate_system(
         ) {
             if intersection(head1, head2, &(*poll1).into(), &(*poll2).into()) {
                 commands.despawn_recursive(gate);
-                through_gate_events.send(event::ThroughGate {});
+                through_gate_events.send(ThroughGate {});
             }
         }
     }
 }
 
 fn head_and_tail_system(
-    mut eat_tail_events: ResMut<Events<event::EatTail>>,
+    mut eat_tail_events: ResMut<Events<EatTail>>,
     centipede_container: Res<CentipedeContainer>,
     head_query: Query<&GlobalTransform, With<head::Head>>,
     tail_query: Query<(&tail::LivingTail, &GlobalTransform)>,
@@ -80,7 +80,7 @@ fn head_and_tail_system(
         let tail_translation = tail_global_transform.translation;
 
         if head_translation.distance(tail_translation.clone()) <= constants::HEAD_SIZE {
-            eat_tail_events.send(event::EatTail {
+            eat_tail_events.send(EatTail {
                 tail_index: tail.index,
             });
         }

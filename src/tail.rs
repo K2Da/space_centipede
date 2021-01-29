@@ -72,8 +72,7 @@ struct PurgedTail {
 fn on_game_start(
     commands: &mut Commands,
     resources: Res<ModResources>,
-    events: Res<Events<event::GameStart>>,
-    mut reader: Local<EventReader<event::GameStart>>,
+    (events, mut reader): (Res<Events<GameStart>>, Local<EventReader<GameStart>>),
 ) {
     for _ in reader.iter(&events) {
         for i in 0..INITIAL_CENTIPEDE_LENGTH {
@@ -86,8 +85,7 @@ fn on_through_gate(
     commands: &mut Commands,
     mut centipede_container: ResMut<CentipedeContainer>,
     resources: Res<ModResources>,
-    events: Res<Events<event::ThroughGate>>,
-    mut reader: Local<EventReader<event::ThroughGate>>,
+    (events, mut reader): (Res<Events<ThroughGate>>, Local<EventReader<ThroughGate>>),
 ) {
     let mut centipede = match &mut centipede_container.centipede {
         Centipede::Alive(centipede) => centipede,
@@ -124,10 +122,11 @@ fn on_miss(
     mut centipede_container: ResMut<CentipedeContainer>,
     time: Res<Time>,
     resources: Res<ModResources>,
-    crush_poll_events: Res<Events<event::CrushPoll>>,
-    mut crush_poll_reader: Local<EventReader<event::CrushPoll>>,
-    eat_tail_events: Res<Events<event::EatTail>>,
-    mut eat_tail_reader: Local<EventReader<event::EatTail>>,
+    (eat_tail_events, mut eat_tail_reader): (Res<Events<EatTail>>, Local<EventReader<EatTail>>),
+    (crush_poll_events, mut crush_poll_reader): (
+        Res<Events<CrushPoll>>,
+        Local<EventReader<CrushPoll>>,
+    ),
     mut living_tail_query: Query<(Entity, &LivingTail)>,
 ) {
     let mut centipede = match &mut centipede_container.centipede {

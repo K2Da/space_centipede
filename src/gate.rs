@@ -50,8 +50,7 @@ pub struct Bar {}
 
 fn on_game_start(
     commands: &mut Commands,
-    events: Res<Events<event::GameStart>>,
-    mut reader: Local<EventReader<event::GameStart>>,
+    (events, mut reader): (Res<Events<GameStart>>, Local<EventReader<GameStart>>),
     query: Query<Entity, With<Gate>>,
 ) {
     for _ in reader.iter(&events) {

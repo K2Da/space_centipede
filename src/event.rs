@@ -39,11 +39,11 @@ pub struct EatTail {
 fn game_over_system(
     time: Res<Time>,
     mut centipede_container: ResMut<CentipedeContainer>,
-    mut game_over_events: ResMut<Events<event::GameOver>>,
+    mut game_over_events: ResMut<Events<GameOver>>,
 ) {
     if let Centipede::Alive(centipede) = &centipede_container.centipede {
         if centipede.tail_count <= 0 {
-            game_over_events.send(event::GameOver {
+            game_over_events.send(GameOver {
                 head_entity: centipede.head_entity,
             });
             centipede_container.centipede = Centipede::Dead(time.seconds_since_startup());
