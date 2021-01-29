@@ -6,10 +6,13 @@ impl Plugin for ModPlugin {
     fn build(&self, app: &mut AppBuilder) {
         app.init_resource::<ModResources>()
             .add_startup_system(setup.system())
-            .add_system(on_game_start.system())
-            .add_system(on_game_over.system())
-            .add_system(select_movement_system.system())
-            .add_system(move_head_system.system());
+            .add_system_to_stage(
+                stage::PRE_UPDATE,
+                select_movement_system.system().chain(void.system()),
+            )
+            .add_system(move_head_system.system().chain(void.system()))
+            .add_system_to_stage(stage::LAST, on_game_start.system())
+            .add_system_to_stage(stage::LAST, on_game_over.system());
     }
 }
 
@@ -59,51 +62,14 @@ fn setup(
         .with(Position::default(false));
 }
 
-fn on_game_start(
-    commands: &mut Commands,
-    resources: Res<ModResources>,
-    mut centipede_container: ResMut<CentipedeContainer>,
-    (events, mut reader): (Res<Events<GameStart>>, Local<EventReader<GameStart>>),
-) {
-    for _ in reader.iter(&events) {
-        centipede_container.centipede = Centipede::Alive(Alive::default(
-            commands
-                .spawn(PbrBundle {
-                    mesh: resources.mesh.clone(),
-                    material: resources.material.clone(),
-                    ..Default::default()
-                })
-                .with(Head {})
-                .with(Position::default(true))
-                .current_entity()
-                .unwrap(),
-        ));
-    }
-}
-
-fn on_game_over(
-    commands: &mut Commands,
-    events: Res<Events<GameOver>>,
-    mut reader: Local<EventReader<GameOver>>,
-) {
-    for event in reader.iter(&events) {
-        commands.despawn(event.head_entity);
-    }
-}
-
 fn select_movement_system(
     mut centipede_container: ResMut<CentipedeContainer>,
     cursor_state: Res<input::CursorState>,
     mut marker_query: Query<&mut Position, With<CenterMarker>>,
     head_query: Query<&Position, With<Head>>,
-) {
-    let (mut centipede, position) = match &mut centipede_container.centipede {
-        Centipede::Alive(centipede) => match head_query.get(centipede.head_entity) {
-            Ok(position) => (centipede, position),
-            _ => return,
-        },
-        _ => return,
-    };
+) -> Option<()> {
+    let mut centipede = centipede_container.alive_mut()?;
+    let position = head_query.get(centipede.head_entity).ok()?;
 
     let mut circular = false;
     match centipede.movement {
@@ -138,20 +104,16 @@ fn select_movement_system(
             marker.y = cursor_state.position.y;
         }
     }
+    None
 }
 
 fn move_head_system(
     mut centipede_container: ResMut<CentipedeContainer>,
     time: Res<Time>,
     mut head_query: Query<&mut Position, With<Head>>,
-) {
-    let (mut centipede, mut position) = match &mut centipede_container.centipede {
-        Centipede::Alive(centipede) => match head_query.get_mut(centipede.head_entity) {
-            Ok(position) => (centipede, position),
-            _ => return,
-        },
-        _ => return,
-    };
+) -> Option<()> {
+    let mut centipede = centipede_container.alive_mut()?;
+    let mut position = head_query.get_mut(centipede.head_entity).ok()?;
 
     // 壁の外にいたら無条件に跳ね返す
     reverse_head_move(&mut centipede, &mut position);
@@ -182,6 +144,7 @@ fn move_head_system(
     };
 
     centipede.position_history.push(position.clone());
+    None
 }
 
 fn reverse_head_move(centipede: &mut Alive, position: &mut Mut<Position>) {
@@ -198,5 +161,37 @@ fn reverse_head_move(centipede: &mut Alive, position: &mut Mut<Position>) {
             x: if out_x { -x } else { x },
             y: if out_y { -y } else { y },
         })
+    }
+}
+
+fn on_game_start(
+    commands: &mut Commands,
+    resources: Res<ModResources>,
+    mut centipede_container: ResMut<CentipedeContainer>,
+    (events, mut reader): (Res<Events<GameStart>>, Local<EventReader<GameStart>>),
+) {
+    for _ in reader.iter(&events) {
+        centipede_container.centipede = Centipede::Alive(Alive::default(
+            commands
+                .spawn(PbrBundle {
+                    mesh: resources.mesh.clone(),
+                    material: resources.material.clone(),
+                    ..Default::default()
+                })
+                .with(Head {})
+                .with(Position::default(true))
+                .current_entity()
+                .unwrap(),
+        ));
+    }
+}
+
+fn on_game_over(
+    commands: &mut Commands,
+    events: Res<Events<GameOver>>,
+    mut reader: Local<EventReader<GameOver>>,
+) {
+    for event in reader.iter(&events) {
+        commands.despawn(event.head_entity);
     }
 }

@@ -42,7 +42,7 @@ pub const HIGH_SCORE_PREFIX: &str = "HIGH:";
 pub const TAIL_PREFIX: &str = "TAIL:";
 pub const SCORE_SIZE: f32 = 24.0;
 pub const SCORE_COLOR: Color = Color::WHITE;
-pub const GATE_NOT_SPAWN_DISTANCE_TO_HEAD: f32 = 200.0;
+pub const GATE_NOT_SPAWN_DISTANCE_TO_HEAD: f32 = 100.0;
 
 pub const VISIBLE_OBJECT_Z: f32 = 10.0;
 pub const INVISIBLE_OBJECT_Z: f32 = -1000.0;

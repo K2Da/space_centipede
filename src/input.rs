@@ -6,7 +6,7 @@ pub struct ModPlugin;
 impl Plugin for ModPlugin {
     fn build(&self, app: &mut AppBuilder) {
         app.init_resource::<CursorState>()
-            .add_system(read_input_events_system.system());
+            .add_system_to_stage(stage::FIRST, read_input_events_system.system());
     }
 }
 

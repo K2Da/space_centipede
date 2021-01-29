@@ -11,8 +11,11 @@ impl Plugin for ModPlugin {
             .add_event::<CrushPoll>()
             .add_event::<ThroughGate>()
             .add_event::<EatTail>()
-            .add_system(game_start_system.system())
-            .add_system(game_over_system.system());
+            .add_system_to_stage(stage::POST_UPDATE, game_start_system.system())
+            .add_system_to_stage(
+                stage::POST_UPDATE,
+                game_over_system.system().chain(void.system()),
+            );
     }
 }
 
@@ -40,15 +43,15 @@ fn game_over_system(
     time: Res<Time>,
     mut centipede_container: ResMut<CentipedeContainer>,
     mut game_over_events: ResMut<Events<GameOver>>,
-) {
-    if let Centipede::Alive(centipede) = &centipede_container.centipede {
-        if centipede.tail_count <= 0 {
-            game_over_events.send(GameOver {
-                head_entity: centipede.head_entity,
-            });
-            centipede_container.centipede = Centipede::Dead(time.seconds_since_startup());
-        }
+) -> Option<()> {
+    let centipede = centipede_container.alive()?;
+    if centipede.tail_count <= 0 {
+        game_over_events.send(GameOver {
+            head_entity: centipede.head_entity,
+        });
+        centipede_container.centipede = Centipede::Dead(time.seconds_since_startup());
     }
+    None
 }
 
 // ゲームが終わって規定の時間が経ったら、再開。起動時の処理も同じ

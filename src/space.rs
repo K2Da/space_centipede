@@ -5,7 +5,7 @@ pub struct ModPlugin;
 impl Plugin for ModPlugin {
     fn build(&self, app: &mut AppBuilder) {
         app.add_startup_system(setup_system.system())
-            .add_system(position_to_translation_system.system());
+            .add_system_to_stage(stage::PRE_RENDER, position_to_translation_system.system());
     }
 }
 

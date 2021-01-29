@@ -9,10 +9,10 @@ impl Plugin for ModPlugin {
         app.add_plugin(FrameTimeDiagnosticsPlugin::default())
             .init_resource::<Status>()
             .add_startup_system(setup.system())
-            .add_system(on_game_start.system())
-            .add_system(on_through_gate.system())
-            .add_system(score_update_system.system())
-            .add_system(fps_update_system.system());
+            .add_system_to_stage(stage::LAST, on_game_start.system())
+            .add_system_to_stage(stage::LAST, on_through_gate.system())
+            .add_system_to_stage(stage::PRE_RENDER, score_update_system.system())
+            .add_system_to_stage(stage::PRE_RENDER, fps_update_system.system());
     }
 }
 

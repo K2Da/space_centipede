@@ -4,8 +4,14 @@ pub struct ModPlugin;
 
 impl Plugin for ModPlugin {
     fn build(&self, app: &mut AppBuilder) {
-        app.add_system(head_and_gate_system.system())
-            .add_system(head_and_tail_system.system());
+        app.add_system_to_stage(
+            stage::SEND_EVENT,
+            head_and_gate_system.system().chain(void.system()),
+        )
+        .add_system_to_stage(
+            stage::SEND_EVENT,
+            head_and_tail_system.system().chain(void.system()),
+        );
     }
 }
 
@@ -17,14 +23,9 @@ fn head_and_gate_system(
     head_query: Query<&GlobalTransform, With<head::Head>>,
     gate_query: Query<(Entity, &Children), With<gate::Gate>>,
     poll_query: Query<&GlobalTransform, With<gate::Poll>>,
-) {
-    let (centipede, head_translation) = match &centipede_container.centipede {
-        Centipede::Alive(centipede) => match head_query.get(centipede.head_entity) {
-            Ok(head) => (centipede, head.translation),
-            _ => return,
-        },
-        _ => return,
-    };
+) -> Option<()> {
+    let centipede = centipede_container.alive()?;
+    let head_translation = head_query.get(centipede.head_entity).ok()?.translation;
 
     for (gate, children) in gate_query.iter() {
         let poll_translations: Vec<Vec3> = children
@@ -60,6 +61,7 @@ fn head_and_gate_system(
             }
         }
     }
+    None
 }
 
 fn head_and_tail_system(
@@ -67,14 +69,11 @@ fn head_and_tail_system(
     centipede_container: Res<CentipedeContainer>,
     head_query: Query<&GlobalTransform, With<head::Head>>,
     tail_query: Query<(&tail::LivingTail, &GlobalTransform)>,
-) {
-    let head_translation = match &centipede_container.centipede {
-        Centipede::Alive(centipede) => match head_query.get(centipede.head_entity) {
-            Ok(head) => head.translation,
-            _ => return,
-        },
-        _ => return,
-    };
+) -> Option<()> {
+    let head_translation = head_query
+        .get(centipede_container.head_entity()?)
+        .ok()?
+        .translation;
 
     for (tail, tail_global_transform) in tail_query.iter() {
         let tail_translation = tail_global_transform.translation;
@@ -85,4 +84,5 @@ fn head_and_tail_system(
             });
         }
     }
+    None
 }

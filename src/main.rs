@@ -1,4 +1,5 @@
-use bevy::prelude::*;
+pub use bevy::prelude::*;
+
 // https://doc.rust-lang.org/reference/items/use-declarations.html#use-visibility
 // preludeの中身はpub useの羅列
 use crate::event::*;
@@ -12,6 +13,7 @@ mod head;
 mod input;
 mod interaction;
 mod space;
+mod stage;
 mod tail;
 mod ui;
 mod util;
@@ -27,6 +29,7 @@ fn main() {
     app.add_plugin(bevy_webgl2::WebGL2Plugin);
 
     app.add_plugin(event::ModPlugin {})
+        .add_plugin(stage::ModPlugin {})
         .add_plugin(space::ModPlugin {})
         .add_plugin(input::ModPlugin {})
         .add_plugin(ui::ModPlugin {})
