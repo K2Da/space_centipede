@@ -5,12 +5,18 @@ pub struct ModPlugin;
 impl Plugin for ModPlugin {
     fn build(&self, app: &mut AppBuilder) {
         app.init_resource::<ModResources>()
-            .add_system(on_game_start.system())
-            .add_system(on_through_gate.system())
-            .add_system(on_miss.system())
-            .add_system(move_tail_system.system())
-            .add_system(purged_tail_system.system())
-            .add_system(rotate_tail_system.system());
+            .add_system_to_stage(
+                stage::POST_UPDATE,
+                move_tail_system.system().chain(void.system()),
+            )
+            .add_system_to_stage(stage::POST_UPDATE, purged_tail_system.system())
+            .add_system_to_stage(stage::POST_UPDATE, rotate_tail_system.system())
+            .add_system_to_stage(stage::RECEIVE_EVENT, on_game_start.system())
+            .add_system_to_stage(
+                stage::RECEIVE_EVENT,
+                on_through_gate.system().chain(void.system()),
+            )
+            .add_system_to_stage(stage::RECEIVE_EVENT, on_miss.system().chain(void.system()));
     }
 }
 
@@ -72,8 +78,7 @@ struct PurgedTail {
 fn on_game_start(
     commands: &mut Commands,
     resources: Res<ModResources>,
-    events: Res<Events<event::GameStart>>,
-    mut reader: Local<EventReader<event::GameStart>>,
+    (events, mut reader): (Res<Events<GameStart>>, Local<EventReader<GameStart>>),
 ) {
     for _ in reader.iter(&events) {
         for i in 0..INITIAL_CENTIPEDE_LENGTH {
@@ -86,18 +91,15 @@ fn on_through_gate(
     commands: &mut Commands,
     mut centipede_container: ResMut<CentipedeContainer>,
     resources: Res<ModResources>,
-    events: Res<Events<event::ThroughGate>>,
-    mut reader: Local<EventReader<event::ThroughGate>>,
-) {
-    let mut centipede = match &mut centipede_container.centipede {
-        Centipede::Alive(centipede) => centipede,
-        _ => return,
-    };
+    (events, mut reader): (Res<Events<ThroughGate>>, Local<EventReader<ThroughGate>>),
+) -> Option<()> {
+    let mut centipede = centipede_container.alive_mut()?;
 
     for _ in reader.iter(&events) {
         spawn_tail(commands, &resources, centipede.tail_count);
         centipede.tail_count += 1;
     }
+    None
 }
 
 fn spawn_tail(commands: &mut Commands, resources: &Res<ModResources>, index: usize) {
@@ -124,16 +126,14 @@ fn on_miss(
     mut centipede_container: ResMut<CentipedeContainer>,
     time: Res<Time>,
     resources: Res<ModResources>,
-    crush_poll_events: Res<Events<event::CrushPoll>>,
-    mut crush_poll_reader: Local<EventReader<event::CrushPoll>>,
-    eat_tail_events: Res<Events<event::EatTail>>,
-    mut eat_tail_reader: Local<EventReader<event::EatTail>>,
+    (eat_tail_events, mut eat_tail_reader): (Res<Events<EatTail>>, Local<EventReader<EatTail>>),
+    (crush_poll_events, mut crush_poll_reader): (
+        Res<Events<CrushPoll>>,
+        Local<EventReader<CrushPoll>>,
+    ),
     mut living_tail_query: Query<(Entity, &LivingTail)>,
-) {
-    let mut centipede = match &mut centipede_container.centipede {
-        Centipede::Alive(centipede) => centipede,
-        _ => return,
-    };
+) -> Option<()> {
+    let mut centipede = centipede_container.alive_mut()?;
 
     for _ in crush_poll_reader.iter(&crush_poll_events) {
         let original_count = centipede.tail_count;
@@ -164,6 +164,7 @@ fn on_miss(
             &mut living_tail_query,
         )
     }
+    None
 }
 
 fn purge_tail(
@@ -206,11 +207,8 @@ fn purge_tail(
 fn move_tail_system(
     centipede_container: Res<CentipedeContainer>,
     mut tail_query: Query<(&mut Position, &LivingTail, &mut Spinner)>,
-) {
-    let centipede = match &centipede_container.centipede {
-        Centipede::Alive(centipede) => centipede,
-        _ => return,
-    };
+) -> Option<()> {
+    let centipede = centipede_container.alive()?;
 
     let mut tail_positions = vec![];
     let mut prev_position = None;
@@ -248,6 +246,7 @@ fn move_tail_system(
             None => {}
         }
     }
+    None
 }
 
 fn rotate_tail_system(

@@ -8,8 +8,11 @@ impl Plugin for ModPlugin {
     fn build(&self, app: &mut AppBuilder) {
         app.init_resource::<ModResources>()
             .init_resource::<GatesInfo>()
-            .add_system(on_game_start.system())
-            .add_system(spawn_gate_system.system());
+            .add_system_to_stage(
+                stage::UPDATE,
+                spawn_gate_system.system().chain(void.system()),
+            )
+            .add_system_to_stage(stage::RECEIVE_EVENT, on_game_start.system());
     }
 }
 
@@ -48,19 +51,6 @@ pub struct Poll {}
 
 pub struct Bar {}
 
-fn on_game_start(
-    commands: &mut Commands,
-    events: Res<Events<event::GameStart>>,
-    mut reader: Local<EventReader<event::GameStart>>,
-    query: Query<Entity, With<Gate>>,
-) {
-    for _ in reader.iter(&events) {
-        for entity in query.iter() {
-            commands.despawn_recursive(entity);
-        }
-    }
-}
-
 fn spawn_gate_system(
     commands: &mut Commands,
     centipede_container: Res<CentipedeContainer>,
@@ -68,14 +58,8 @@ fn spawn_gate_system(
     resources: Res<ModResources>,
     mut gates_info: ResMut<GatesInfo>,
     head_query: Query<&Position, With<head::Head>>,
-) {
-    let head_position = match &centipede_container.centipede {
-        Centipede::Alive(centipede) => match head_query.get(centipede.head_entity) {
-            Ok(position) => position,
-            _ => return,
-        },
-        _ => return,
-    };
+) -> Option<()> {
+    let head_position = head_query.get(centipede_container.head_entity()?).ok()?;
 
     if time.seconds_since_startup() / GATE_SPAWN_PER_SECONDS > gates_info.count as f64 {
         gates_info.count += 1;
@@ -117,6 +101,7 @@ fn spawn_gate_system(
             .with(Bar {})
             .with(Parent(gate));
     }
+    None
 }
 
 fn spawn_poll(commands: &mut Commands, resources: &Res<ModResources>, gate: Entity, length: f32) {
@@ -149,6 +134,18 @@ fn gate_position(length: f32, head_position: &Position) -> Position {
 
         if head_position.distance(&position) > GATE_NOT_SPAWN_DISTANCE_TO_HEAD {
             return position;
+        }
+    }
+}
+
+fn on_game_start(
+    commands: &mut Commands,
+    (events, mut reader): (Res<Events<GameStart>>, Local<EventReader<GameStart>>),
+    query: Query<Entity, With<Gate>>,
+) {
+    for _ in reader.iter(&events) {
+        for entity in query.iter() {
+            commands.despawn_recursive(entity);
         }
     }
 }

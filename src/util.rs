@@ -14,6 +14,29 @@ impl Default for CentipedeContainer {
     }
 }
 
+impl CentipedeContainer {
+    pub fn alive(&self) -> Option<&Alive> {
+        match &self.centipede {
+            Centipede::Alive(alive) => Some(alive),
+            _ => None,
+        }
+    }
+
+    pub fn alive_mut(&mut self) -> Option<&mut Alive> {
+        match &mut self.centipede {
+            Centipede::Alive(alive) => Some(alive),
+            _ => None,
+        }
+    }
+
+    pub fn head_entity(&self) -> Option<Entity> {
+        match &self.centipede {
+            Centipede::Alive(alive) => Some(alive.head_entity),
+            _ => None,
+        }
+    }
+}
+
 // プレイヤー・キャラクターの状態
 pub enum Centipede {
     Alive(Alive),
@@ -38,11 +61,18 @@ impl Alive {
             movement: Movement::Linear(Vec2 { x: 1.0, y: 0.0 }),
             last_move: Vec2 { x: 1.0, y: 0.0 },
             tail_count: INITIAL_CENTIPEDE_LENGTH,
-            position_history: vec![Position {
-                x: -1000.0,
-                y: 0.0,
-                visible: true,
-            }],
+            position_history: vec![
+                Position {
+                    x: -1000.0,
+                    y: 0.0,
+                    visible: true,
+                },
+                Position {
+                    x: 0.0,
+                    y: 0.0,
+                    visible: true,
+                },
+            ],
         }
     }
 }
@@ -152,3 +182,5 @@ impl Default for ContainerBundle {
         }
     }
 }
+
+pub fn void(_: In<Option<()>>) {}
