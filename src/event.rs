@@ -57,14 +57,12 @@ fn game_over_system(
 // ゲームが終わって規定の時間が経ったら、再開。起動時の処理も同じ
 fn game_start_system(
     time: Res<Time>,
-    mut centipede_container: ResMut<CentipedeContainer>,
+    centipede_container: Res<CentipedeContainer>,
     mut game_start_events: ResMut<Events<event::GameStart>>,
 ) {
     if let Centipede::Dead(dead_at) = centipede_container.centipede {
         if dead_at == 0.0 || dead_at < time.seconds_since_startup() - 2.0 {
             game_start_events.send(event::GameStart {});
-            centipede_container.centipede =
-                Centipede::Dead(time.seconds_since_startup() + 100000.0);
         }
     }
 }
