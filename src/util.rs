@@ -44,6 +44,7 @@ pub enum Centipede {
 }
 
 // 生きてる場合
+#[derive(Clone)]
 pub struct Alive {
     pub head_entity: Entity,
     pub speed: f32,
@@ -58,8 +59,8 @@ impl Alive {
         Self {
             head_entity,
             speed: DEFAULT_SPEED,
-            movement: Movement::Linear(Vec2 { x: 1.0, y: 0.0 }),
-            last_move: Vec2 { x: 1.0, y: 0.0 },
+            movement: Movement::Linear(Vec2::new(1.0, 0.0)),
+            last_move: Vec2::new(1.0, 0.0),
             tail_count: INITIAL_CENTIPEDE_LENGTH,
             position_history: vec![
                 Position {
@@ -141,7 +142,7 @@ impl Position {
 
 impl From<Position> for Vec2 {
     fn from(p: Position) -> Self {
-        Vec2 { x: p.x, y: p.y }
+        Vec2::new(p.x, p.y)
     }
 }
 
@@ -177,8 +178,12 @@ pub struct ContainerBundle {
 impl Default for ContainerBundle {
     fn default() -> Self {
         Self {
-            transform: Transform::from_translation(INVISIBLE_POSITION),
-            global_transform: GlobalTransform::from_translation(INVISIBLE_POSITION),
+            transform: Transform::from_translation(Vec3::new(0., 0., INVISIBLE_OBJECT_Z)),
+            global_transform: GlobalTransform::from_translation(Vec3::new(
+                0.,
+                0.,
+                INVISIBLE_OBJECT_Z,
+            )),
         }
     }
 }

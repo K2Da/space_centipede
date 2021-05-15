@@ -2,6 +2,7 @@ pub use bevy::prelude::*;
 
 use crate::event::*;
 pub use constants::*;
+pub use stage::MyStage;
 pub use util::*;
 
 mod constants;
@@ -19,7 +20,7 @@ mod util;
 fn main() {
     let mut app = App::build();
 
-    app.add_resource(Msaa { samples: 4 })
+    app.insert_resource(Msaa { samples: 4 })
         .add_plugins(DefaultPlugins);
 
     #[cfg(target_arch = "wasm32")]

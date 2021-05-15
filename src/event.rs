@@ -11,9 +11,9 @@ impl Plugin for ModPlugin {
             .add_event::<CrushPoll>()
             .add_event::<ThroughGate>()
             .add_event::<EatTail>()
-            .add_system_to_stage(stage::POST_UPDATE, game_start_system.system())
+            .add_system_to_stage(CoreStage::PostUpdate, game_start_system.system())
             .add_system_to_stage(
-                stage::POST_UPDATE,
+                CoreStage::PostUpdate,
                 game_over_system.system().chain(void.system()),
             );
     }
@@ -42,11 +42,11 @@ pub struct EatTail {
 fn game_over_system(
     time: Res<Time>,
     mut centipede_container: ResMut<CentipedeContainer>,
-    mut game_over_events: ResMut<Events<GameOver>>,
+    mut game_over_writer: EventWriter<GameOver>,
 ) -> Option<()> {
     let centipede = centipede_container.alive()?;
     if centipede.tail_count <= 0 {
-        game_over_events.send(GameOver {
+        game_over_writer.send(GameOver {
             head_entity: centipede.head_entity,
         });
         centipede_container.centipede = Centipede::Dead(time.seconds_since_startup());
@@ -58,11 +58,11 @@ fn game_over_system(
 fn game_start_system(
     time: Res<Time>,
     centipede_container: Res<CentipedeContainer>,
-    mut game_start_events: ResMut<Events<event::GameStart>>,
+    mut game_start_writer: EventWriter<event::GameStart>,
 ) {
     if let Centipede::Dead(dead_at) = centipede_container.centipede {
         if dead_at == 0.0 || dead_at < time.seconds_since_startup() - 2.0 {
-            game_start_events.send(event::GameStart {});
+            game_start_writer.send(event::GameStart {});
         }
     }
 }

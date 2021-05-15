@@ -5,20 +5,20 @@ pub struct ModPlugin;
 impl Plugin for ModPlugin {
     fn build(&self, app: &mut AppBuilder) {
         app.add_system_to_stage(
-            stage::SEND_EVENT,
+            MyStage::SendEvent,
             head_and_gate_system.system().chain(void.system()),
         )
         .add_system_to_stage(
-            stage::SEND_EVENT,
+            MyStage::SendEvent,
             head_and_tail_system.system().chain(void.system()),
         );
     }
 }
 
 fn head_and_gate_system(
-    commands: &mut Commands,
-    mut through_gate_events: ResMut<Events<ThroughGate>>,
-    mut crush_gate_events: ResMut<Events<CrushPoll>>,
+    mut commands: Commands,
+    mut through_gate_writer: EventWriter<ThroughGate>,
+    mut crush_gate_writer: EventWriter<CrushPoll>,
     centipede_container: Res<CentipedeContainer>,
     head_query: Query<&GlobalTransform, With<head::Head>>,
     gate_query: Query<(Entity, &Children), With<gate::Gate>>,
@@ -40,9 +40,9 @@ fn head_and_gate_system(
                 <= constants::POLL_SIZE + constants::HEAD_SIZE
             {
                 // ここで消さないと次のフレームで再度衝突する
-                commands.despawn_recursive(gate);
+                commands.entity(gate).despawn_recursive();
                 // このイベント使ってないが
-                crush_gate_events.send(CrushPoll {});
+                crush_gate_writer.send(CrushPoll {});
             }
         }
 
@@ -56,8 +56,8 @@ fn head_and_gate_system(
             poll_translations.get(1),
         ) {
             if intersection(head1, head2, &(*poll1).into(), &(*poll2).into()) {
-                commands.despawn_recursive(gate);
-                through_gate_events.send(ThroughGate {});
+                commands.entity(gate).despawn_recursive();
+                through_gate_writer.send(ThroughGate {});
             }
         }
     }
@@ -65,7 +65,7 @@ fn head_and_gate_system(
 }
 
 fn head_and_tail_system(
-    mut eat_tail_events: ResMut<Events<EatTail>>,
+    mut eat_tail_writer: EventWriter<EatTail>,
     centipede_container: Res<CentipedeContainer>,
     head_query: Query<&GlobalTransform, With<head::Head>>,
     tail_query: Query<(&tail::LivingTail, &GlobalTransform)>,
@@ -79,7 +79,7 @@ fn head_and_tail_system(
         let tail_translation = tail_global_transform.translation;
 
         if head_translation.distance(tail_translation.clone()) <= constants::HEAD_SIZE {
-            eat_tail_events.send(EatTail {
+            eat_tail_writer.send(EatTail {
                 tail_index: tail.index,
             });
         }

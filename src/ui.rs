@@ -9,10 +9,10 @@ impl Plugin for ModPlugin {
         app.add_plugin(FrameTimeDiagnosticsPlugin::default())
             .init_resource::<Status>()
             .add_startup_system(setup.system())
-            .add_system_to_stage(stage::LAST, on_game_start.system())
-            .add_system_to_stage(stage::LAST, on_through_gate.system())
-            .add_system_to_stage(stage::PRE_RENDER, score_update_system.system())
-            .add_system_to_stage(stage::PRE_RENDER, fps_update_system.system());
+            .add_system_to_stage(CoreStage::Last, on_game_start.system())
+            .add_system_to_stage(CoreStage::Last, on_through_gate.system())
+            .add_system_to_stage(MyStage::PreRender, score_update_system.system())
+            .add_system_to_stage(MyStage::PreRender, fps_update_system.system());
     }
 }
 
@@ -26,11 +26,11 @@ struct Status {
     high_score: usize,
 }
 
-fn setup(commands: &mut Commands, asset_server: Res<AssetServer>) {
+fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     let font = asset_server.load(FONT);
+    commands.spawn_bundle(UiCameraBundle::default());
     commands
-        .spawn(CameraUiBundle::default())
-        .spawn(TextBundle {
+        .spawn_bundle(TextBundle {
             style: Style {
                 position_type: PositionType::Absolute,
                 position: Rect {
@@ -42,19 +42,24 @@ fn setup(commands: &mut Commands, asset_server: Res<AssetServer>) {
                 align_self: AlignSelf::Baseline,
                 ..Default::default()
             },
-            text: Text {
-                value: FPS_PREFIX.to_string(),
-                font: font.clone(),
-                style: TextStyle {
+            text: Text::with_section(
+                FPS_PREFIX.to_string(),
+                TextStyle {
+                    font: font.clone(),
                     font_size: FPS_SIZE,
                     color: FPS_COLOR,
-                    ..Default::default()
                 },
-            },
+                TextAlignment {
+                    vertical: VerticalAlign::Center,
+                    horizontal: HorizontalAlign::Center,
+                },
+            ),
             ..Default::default()
         })
-        .with(FpsText)
-        .spawn(TextBundle {
+        .insert(FpsText);
+
+    commands
+        .spawn_bundle(TextBundle {
             style: Style {
                 position_type: PositionType::Absolute,
                 position: Rect {
@@ -65,27 +70,30 @@ fn setup(commands: &mut Commands, asset_server: Res<AssetServer>) {
                 },
                 ..Default::default()
             },
-            text: Text {
-                value: SCORE_PREFIX.to_string(),
-                font: font.clone(),
-                style: TextStyle {
+            text: Text::with_section(
+                SCORE_PREFIX.to_string(),
+                TextStyle {
+                    font: font.clone(),
                     font_size: SCORE_SIZE,
                     color: SCORE_COLOR,
-                    ..Default::default()
                 },
-            },
+                TextAlignment {
+                    vertical: VerticalAlign::Center,
+                    horizontal: HorizontalAlign::Center,
+                },
+            ),
             ..Default::default()
         })
-        .with(ScoreText);
+        .insert(ScoreText);
 }
 
 fn on_through_gate(
     centipede_container: Res<CentipedeContainer>,
     mut status: ResMut<Status>,
-    (events, mut reader): (Res<Events<ThroughGate>>, Local<EventReader<ThroughGate>>),
+    mut reader: EventReader<ThroughGate>,
 ) {
     if let Centipede::Alive(centipede) = &centipede_container.centipede {
-        for _ in reader.iter(&events) {
+        for _ in reader.iter() {
             status.score +=
                 (centipede.tail_count as f32 * centipede.speed / 100.0).floor() as usize;
             if status.score >= status.high_score {
@@ -95,11 +103,8 @@ fn on_through_gate(
     }
 }
 
-fn on_game_start(
-    mut status: ResMut<Status>,
-    (events, mut reader): (Res<Events<GameStart>>, Local<EventReader<GameStart>>),
-) {
-    for _ in reader.iter(&events) {
+fn on_game_start(mut status: ResMut<Status>, mut reader: EventReader<GameStart>) {
+    for _ in reader.iter() {
         status.score = 0;
     }
 }
@@ -111,7 +116,8 @@ fn fps_update_system(
     for mut text in fps_query.iter_mut() {
         if let Some(fps) = diagnostics.get(FrameTimeDiagnosticsPlugin::FPS) {
             if let Some(average) = fps.average() {
-                text.value = format!("{:} {:.2}", FPS_PREFIX, average).into();
+                text.sections.first_mut().unwrap().value =
+                    format!("{:} {:.2}", FPS_PREFIX, average).into();
             }
         }
     }
@@ -124,7 +130,7 @@ fn score_update_system(
 ) {
     if let Centipede::Alive(centipede) = &centipede_container.centipede {
         for mut text in score_query.iter_mut() {
-            text.value = format!(
+            text.sections.first_mut().unwrap().value = format!(
                 "{:} {:.0}              {:} {:.0}              {:} {:.0}              {:} {:.0}",
                 SPEED_PREFIX,
                 centipede.speed,

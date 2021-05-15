@@ -6,7 +6,7 @@ pub struct ModPlugin;
 impl Plugin for ModPlugin {
     fn build(&self, app: &mut AppBuilder) {
         app.init_resource::<CursorState>()
-            .add_system_to_stage(stage::FIRST, read_input_events_system.system());
+            .add_system_to_stage(CoreStage::First, read_input_events_system.system());
     }
 }
 
@@ -22,10 +22,10 @@ fn read_input_events_system(
     mouse_input: Res<Input<MouseButton>>,
     windows: Res<Windows>,
     mut cursor_state: ResMut<CursorState>,
-    (events, mut reader): (Res<Events<CursorMoved>>, Local<EventReader<CursorMoved>>),
+    mut reader: EventReader<CursorMoved>,
 ) {
     // cursorは左下が0, 0、Vec2は真ん中が0, 0
-    for event in reader.iter(&events) {
+    for event in reader.iter() {
         cursor_state.screen_position = event.position;
     }
 

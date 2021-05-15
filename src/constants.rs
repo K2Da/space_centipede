@@ -1,4 +1,4 @@
-use bevy::{prelude::Vec3, render::color::Color};
+use bevy::render::color::Color;
 
 pub const INITIAL_CENTIPEDE_LENGTH: usize = 10;
 
@@ -23,12 +23,6 @@ pub const BAR_COLOR: Color = Color::LIME_GREEN;
 pub const BAR_DIAMETER: f32 = 10.0;
 pub const GATE_SPAWN_PER_SECONDS: f64 = 2.0;
 
-pub const LIGHT_COORDINATE: Vec3 = Vec3 {
-    x: 0.0,
-    y: 0.0,
-    z: 900.0,
-};
-
 pub const FONT: &str = "fonts/FiraSans-Bold.ttf";
 
 pub const FPS_PREFIX: &str = "FPS:";
@@ -46,12 +40,6 @@ pub const GATE_NOT_SPAWN_DISTANCE_TO_HEAD: f32 = 100.0;
 
 pub const VISIBLE_OBJECT_Z: f32 = 10.0;
 pub const INVISIBLE_OBJECT_Z: f32 = -1000.0;
-
-pub const INVISIBLE_POSITION: Vec3 = Vec3 {
-    x: 0.,
-    y: 0.,
-    z: INVISIBLE_OBJECT_Z,
-};
 
 pub const PANEL_SIZE: f32 = 50.0;
 pub const PANEL_X_COUNT: isize = 25;

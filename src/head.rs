@@ -7,12 +7,12 @@ impl Plugin for ModPlugin {
         app.init_resource::<ModResources>()
             .add_startup_system(setup.system())
             .add_system_to_stage(
-                stage::PRE_UPDATE,
+                CoreStage::PreUpdate,
                 select_movement_system.system().chain(void.system()),
             )
             .add_system(move_head_system.system().chain(void.system()))
-            .add_system_to_stage(stage::LAST, on_game_start.system())
-            .add_system_to_stage(stage::LAST, on_game_over.system());
+            .add_system_to_stage(CoreStage::Last, on_game_start.system())
+            .add_system_to_stage(CoreStage::Last, on_game_over.system());
     }
 }
 
@@ -26,18 +26,18 @@ struct ModResources {
     material: Handle<StandardMaterial>,
 }
 
-impl FromResources for ModResources {
-    fn from_resources(resources: &Resources) -> Self {
+impl FromWorld for ModResources {
+    fn from_world(world: &mut World) -> Self {
         Self {
-            mesh: resources
-                .get_mut::<Assets<Mesh>>()
+            mesh: world
+                .get_resource_mut::<Assets<Mesh>>()
                 .unwrap()
                 .add(Mesh::from(shape::Icosphere {
                     radius: HEAD_SIZE,
                     subdivisions: 5,
                 })),
-            material: resources
-                .get_mut::<Assets<StandardMaterial>>()
+            material: world
+                .get_resource_mut::<Assets<StandardMaterial>>()
                 .unwrap()
                 .add(HEAD_COLOR.into()),
         }
@@ -45,12 +45,12 @@ impl FromResources for ModResources {
 }
 
 fn setup(
-    commands: &mut Commands,
+    mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     commands
-        .spawn(PbrBundle {
+        .spawn_bundle(PbrBundle {
             mesh: meshes.add(Mesh::from(shape::Icosphere {
                 radius: MARKER_SIZE,
                 subdivisions: 5,
@@ -58,18 +58,20 @@ fn setup(
             material: materials.add(MARKER_COLOR.into()),
             ..Default::default()
         })
-        .with(CenterMarker {})
-        .with(Position::default(false));
+        .insert(CenterMarker {})
+        .insert(Position::default(false));
 }
 
 fn select_movement_system(
     mut centipede_container: ResMut<CentipedeContainer>,
     cursor_state: Res<input::CursorState>,
-    mut marker_query: Query<&mut Position, With<CenterMarker>>,
-    head_query: Query<&Position, With<Head>>,
+    mut qs: QuerySet<(
+        Query<&mut Position, With<CenterMarker>>,
+        Query<&Position, With<Head>>,
+    )>,
 ) -> Option<()> {
     let mut centipede = centipede_container.alive_mut()?;
-    let position = head_query.get(centipede.head_entity).ok()?;
+    let position = qs.q1().get(centipede.head_entity).ok()?;
 
     let mut circular = false;
     match centipede.movement {
@@ -80,12 +82,12 @@ fn select_movement_system(
             circular = true;
         }
         Movement::Linear(_) => {
-            let vec = Vec2 {
-                y: -cursor_state.position.x + position.x,
-                x: cursor_state.position.y - position.y,
-            };
-            let inner_product = vec.x * centipede.last_move.x + vec.y * centipede.last_move.y;
             if cursor_state.left_pressed {
+                let vec = Vec2::new(
+                    cursor_state.position.y - position.y,
+                    -cursor_state.position.x + position.x,
+                );
+                let inner_product = vec.x * centipede.last_move.x + vec.y * centipede.last_move.y;
                 centipede.movement = Movement::Circular(CircularMove {
                     center: cursor_state.position.clone(),
                     clockwise: inner_product < 0.0,
@@ -94,7 +96,7 @@ fn select_movement_system(
         }
     }
 
-    for mut marker in marker_query.iter_mut() {
+    for mut marker in qs.q0_mut().iter_mut() {
         // 回転してるときだけ表示
         marker.visible = circular;
 
@@ -132,16 +134,13 @@ fn move_head_system(
             centipede.speed += time.delta_seconds() * SPEED_UP;
         }
         Movement::Linear(direction) => {
-            if direction != (Vec2 { x: 0.0, y: 0.0 }) {
+            if direction != (Vec2::new(0.0, 0.0)) {
                 position.move_to_with_distance(direction, distance);
             }
         }
     }
 
-    centipede.last_move = Vec2 {
-        x: position.x - last_position.x,
-        y: position.y - last_position.y,
-    };
+    centipede.last_move = Vec2::new(position.x - last_position.x, position.y - last_position.y);
 
     centipede.position_history.push(position.clone());
     None
@@ -156,42 +155,37 @@ fn reverse_head_move(centipede: &mut Alive, position: &mut Mut<Position>) {
     );
 
     if out_x || out_y {
-        let Vec2 { x, y } = centipede.last_move;
-        centipede.movement = Movement::Linear(Vec2 {
-            x: if out_x { -x } else { x },
-            y: if out_y { -y } else { y },
-        })
+        let (x, y) = (centipede.last_move.x, centipede.last_move.y);
+        centipede.movement = Movement::Linear(Vec2::new(
+            if out_x { -x } else { x },
+            if out_y { -y } else { y },
+        ))
     }
 }
 
 fn on_game_start(
-    commands: &mut Commands,
+    mut commands: Commands,
     resources: Res<ModResources>,
     mut centipede_container: ResMut<CentipedeContainer>,
-    (events, mut reader): (Res<Events<GameStart>>, Local<EventReader<GameStart>>),
+    mut reader: EventReader<GameStart>,
 ) {
-    for _ in reader.iter(&events) {
+    for _ in reader.iter() {
         centipede_container.centipede = Centipede::Alive(Alive::default(
             commands
-                .spawn(PbrBundle {
+                .spawn_bundle(PbrBundle {
                     mesh: resources.mesh.clone(),
                     material: resources.material.clone(),
                     ..Default::default()
                 })
-                .with(Head {})
-                .with(Position::default(true))
-                .current_entity()
-                .unwrap(),
+                .insert(Head {})
+                .insert(Position::default(true))
+                .id(),
         ));
     }
 }
 
-fn on_game_over(
-    commands: &mut Commands,
-    events: Res<Events<GameOver>>,
-    mut reader: Local<EventReader<GameOver>>,
-) {
-    for event in reader.iter(&events) {
-        commands.despawn(event.head_entity);
+fn on_game_over(mut commands: Commands, mut reader: EventReader<GameOver>) {
+    for event in reader.iter() {
+        commands.entity(event.head_entity).despawn();
     }
 }

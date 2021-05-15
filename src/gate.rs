@@ -9,10 +9,10 @@ impl Plugin for ModPlugin {
         app.init_resource::<ModResources>()
             .init_resource::<GatesInfo>()
             .add_system_to_stage(
-                stage::UPDATE,
+                CoreStage::Update,
                 spawn_gate_system.system().chain(void.system()),
             )
-            .add_system_to_stage(stage::RECEIVE_EVENT, on_game_start.system());
+            .add_system_to_stage(MyStage::ReceiveEvent, on_game_start.system());
     }
 }
 
@@ -23,19 +23,26 @@ struct ModResources {
     bar_material: Handle<StandardMaterial>,
 }
 
-impl FromResources for ModResources {
-    fn from_resources(resources: &Resources) -> Self {
-        let mut meshes = resources.get_mut::<Assets<Mesh>>().unwrap();
-        let mut materials = resources.get_mut::<Assets<StandardMaterial>>().unwrap();
+impl FromWorld for ModResources {
+    fn from_world(world: &mut World) -> Self {
+        let mut mesh = world.get_resource_mut::<Assets<Mesh>>().unwrap();
+        let poll_mesh = mesh.add(Mesh::from(shape::Icosphere {
+            radius: POLL_SIZE,
+            subdivisions: 5,
+        }));
+        let bar_mesh = mesh.add(Mesh::from(shape::Cube { size: 1.0 }));
+
+        let mut material = world
+            .get_resource_mut::<Assets<StandardMaterial>>()
+            .unwrap();
+        let poll_material = material.add(POLL_COLOR.into());
+        let bar_material = material.add(BAR_COLOR.into());
 
         Self {
-            poll_mesh: meshes.add(Mesh::from(shape::Icosphere {
-                radius: POLL_SIZE,
-                subdivisions: 5,
-            })),
-            poll_material: materials.add(POLL_COLOR.into()),
-            bar_mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
-            bar_material: materials.add(BAR_COLOR.into()),
+            poll_mesh,
+            poll_material,
+            bar_mesh,
+            bar_material,
         }
     }
 }
@@ -52,7 +59,7 @@ pub struct Poll {}
 pub struct Bar {}
 
 fn spawn_gate_system(
-    commands: &mut Commands,
+    mut commands: Commands,
     centipede_container: Res<CentipedeContainer>,
     time: Res<Time>,
     resources: Res<ModResources>,
@@ -67,39 +74,33 @@ fn spawn_gate_system(
         let position = gate_position(length, head_position);
 
         let gate = commands
-            .spawn(ContainerBundle {
+            .spawn_bundle(ContainerBundle {
                 transform: Transform {
-                    translation: constants::INVISIBLE_POSITION,
+                    translation: Vec3::new(0., 0., INVISIBLE_OBJECT_Z),
                     rotation: Quat::from_rotation_z(random::<f32>() * PI),
                     ..Default::default()
                 },
                 ..Default::default()
             })
-            .with(Gate {})
-            .with(position)
-            .current_entity()
-            .unwrap();
+            .insert(Gate {})
+            .insert(position)
+            .id();
 
-        spawn_poll(commands, &resources, gate, length);
-        spawn_poll(commands, &resources, gate, -length);
-        // childrenはpositionもってないので、transformationから算出する
+        spawn_poll(&mut commands, &resources, gate, length);
+        spawn_poll(&mut commands, &resources, gate, -length);
 
         commands
-            .spawn(PbrBundle {
+            .spawn_bundle(PbrBundle {
                 mesh: resources.bar_mesh.clone(),
                 material: resources.bar_material.clone(),
                 transform: Transform {
-                    scale: Vec3 {
-                        x: length,
-                        y: BAR_DIAMETER,
-                        z: BAR_DIAMETER,
-                    },
+                    scale: Vec3::new(length, BAR_DIAMETER, BAR_DIAMETER),
                     ..Default::default()
                 },
                 ..Default::default()
             })
-            .with(Bar {})
-            .with(Parent(gate));
+            .insert(Bar {})
+            .insert(Parent(gate));
     }
     None
 }
@@ -107,19 +108,19 @@ fn spawn_gate_system(
 fn spawn_poll(commands: &mut Commands, resources: &Res<ModResources>, gate: Entity, length: f32) {
     // https://github.com/bevyengine/bevy/blob/master/examples/ecs/hierarchy.rs
     commands
-        .spawn(PbrBundle {
+        .spawn_bundle(PbrBundle {
             mesh: resources.poll_mesh.clone(),
             material: resources.poll_material.clone(),
-            transform: Transform::from_translation(Vec3 {
-                x: length / 2.0,
-                y: 0.0,
-                z: 0.0,
-            }),
-            global_transform: GlobalTransform::from_translation(constants::INVISIBLE_POSITION),
+            transform: Transform::from_translation(Vec3::new(length / 2.0, 0.0, 0.0)),
+            global_transform: GlobalTransform::from_translation(Vec3::new(
+                0.,
+                0.,
+                constants::INVISIBLE_OBJECT_Z,
+            )),
             ..Default::default()
         })
-        .with(Poll {})
-        .with(Parent(gate));
+        .insert(Poll {})
+        .insert(Parent(gate));
 }
 
 fn gate_position(length: f32, head_position: &Position) -> Position {
@@ -139,13 +140,13 @@ fn gate_position(length: f32, head_position: &Position) -> Position {
 }
 
 fn on_game_start(
-    commands: &mut Commands,
-    (events, mut reader): (Res<Events<GameStart>>, Local<EventReader<GameStart>>),
+    mut commands: Commands,
+    mut reader: EventReader<GameStart>,
     query: Query<Entity, With<Gate>>,
 ) {
-    for _ in reader.iter(&events) {
+    for _ in reader.iter() {
         for entity in query.iter() {
-            commands.despawn_recursive(entity);
+            commands.entity(entity).despawn_recursive();
         }
     }
 }
