@@ -1,5 +1,7 @@
-# Space Centipede
-
-チュートリアルを書くのに作ったゲームです。
-
-動くもの。 https://k2da.github.io/space_centipede/index.html
+## ToDo
+- [x] 長押しではなく、タップで指定、タップで解除にする
+- [x] add_systemsはすべてmainにあつめ、ModPluginはいらなければ消す
+- [x] 門は重ならないように
+- [ ] 門通ったらエフェクト
+- [ ] クリア後にスコア表示
+- [ ] スコア登録

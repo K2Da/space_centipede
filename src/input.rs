@@ -1,16 +1,16 @@
+use crate::space::ScreenState;
 use crate::*;
 
 pub struct ModPlugin;
 
 // ユーザーの入力をリソースに設定する
 impl Plugin for ModPlugin {
-    fn build(&self, app: &mut AppBuilder) {
-        app.init_resource::<CursorState>()
-            .add_system_to_stage(stage::FIRST, read_input_events_system.system());
+    fn build(&self, app: &mut App) {
+        app.init_resource::<CursorState>();
     }
 }
 
-#[derive(Default, Debug)]
+#[derive(Resource, Default, Debug)]
 pub struct CursorState {
     pub screen_position: Vec2,
     pub position: Position,
@@ -18,21 +18,26 @@ pub struct CursorState {
 }
 
 // bevyのResから、情報を読み取り、CursorStateを更新する
-fn read_input_events_system(
+pub fn read_input_system(
     mouse_input: Res<Input<MouseButton>>,
-    windows: Res<Windows>,
+    screen_state: Res<ScreenState>,
     mut cursor_state: ResMut<CursorState>,
-    (events, mut reader): (Res<Events<CursorMoved>>, Local<EventReader<CursorMoved>>),
+    mut cursor_reader: EventReader<CursorMoved>,
+    mut tap_events: ResMut<Events<event::Tap>>,
 ) {
     // cursorは左下が0, 0、Vec2は真ん中が0, 0
-    for event in reader.iter(&events) {
+    for event in cursor_reader.read() {
         cursor_state.screen_position = event.position;
     }
 
-    // マウスの左ボタン状態
+    // ユーザーのタップ(マウスの左ボタン)
+    if !cursor_state.left_pressed && mouse_input.pressed(MouseButton::Left) {
+        tap_events.send(event::Tap {});
+    }
     cursor_state.left_pressed = mouse_input.pressed(MouseButton::Left);
 
-    let window = windows.get_primary().unwrap();
-    cursor_state.position.x = cursor_state.screen_position.x - window.width() / 2.0;
-    cursor_state.position.y = cursor_state.screen_position.y - window.height() / 2.0;
+    cursor_state.position.x =
+        (cursor_state.screen_position.x - screen_state.size.x / 2.0) * screen_state.scale;
+    cursor_state.position.y =
+        (-cursor_state.screen_position.y + screen_state.size.y / 2.0) * screen_state.scale;
 }

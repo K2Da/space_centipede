@@ -1,151 +1,97 @@
 use crate::*;
 use rand::prelude::random;
-use std::f32::consts::PI;
 
 pub struct ModPlugin {}
 
 impl Plugin for ModPlugin {
-    fn build(&self, app: &mut AppBuilder) {
-        app.init_resource::<ModResources>()
-            .init_resource::<GatesInfo>()
-            .add_system_to_stage(
-                stage::UPDATE,
-                spawn_gate_system.system().chain(void.system()),
-            )
-            .add_system_to_stage(stage::RECEIVE_EVENT, on_game_start.system());
+    fn build(&self, app: &mut App) {
+        app.init_resource::<GatesInfo>();
     }
 }
 
-struct ModResources {
-    poll_mesh: Handle<Mesh>,
-    poll_material: Handle<StandardMaterial>,
-    bar_mesh: Handle<Mesh>,
-    bar_material: Handle<StandardMaterial>,
-}
-
-impl FromResources for ModResources {
-    fn from_resources(resources: &Resources) -> Self {
-        let mut meshes = resources.get_mut::<Assets<Mesh>>().unwrap();
-        let mut materials = resources.get_mut::<Assets<StandardMaterial>>().unwrap();
-
-        Self {
-            poll_mesh: meshes.add(Mesh::from(shape::Icosphere {
-                radius: POLL_SIZE,
-                subdivisions: 5,
-            })),
-            poll_material: materials.add(POLL_COLOR.into()),
-            bar_mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
-            bar_material: materials.add(BAR_COLOR.into()),
-        }
-    }
-}
-
-#[derive(Default)]
+#[derive(Resource, Default)]
 pub struct GatesInfo {
     count: usize,
 }
 
-pub struct Gate {}
-
+#[derive(Component)]
 pub struct Poll {}
 
+#[derive(Component)]
 pub struct Bar {}
 
-fn spawn_gate_system(
-    commands: &mut Commands,
+pub fn spawn_gate_system(
+    mut commands: Commands,
     centipede_container: Res<CentipedeContainer>,
     time: Res<Time>,
-    resources: Res<ModResources>,
     mut gates_info: ResMut<GatesInfo>,
     head_query: Query<&Position, With<head::Head>>,
+    handles: Res<asset::Handles>,
+    bar_query: Query<(&Position, &Sprite), With<Bar>>,
 ) -> Option<()> {
-    let head_position = head_query.get(centipede_container.head_entity()?).ok()?;
+    if time.elapsed_seconds_f64() / GATE_SPAWN_PER_SECONDS > gates_info.count as f64 {
+        let head_position = head_query.get(centipede_container.head_entity()?).ok()?;
 
-    if time.seconds_since_startup() / GATE_SPAWN_PER_SECONDS > gates_info.count as f64 {
-        gates_info.count += 1;
+        let bars: Vec<(&Position, f32)> = bar_query
+            .iter()
+            .map(|(position, sprite)| (position, sprite.custom_size.unwrap().x))
+            .collect();
+
         let length = GATE_MIN_WIDTH + random::<f32>() * (GATE_MAX_WIDTH - GATE_MIN_WIDTH);
-        let position = gate_position(length, head_position);
+        if let Some(position) = gate_position(length, &bars, head_position) {
+            gates_info.count += 1;
 
-        let gate = commands
-            .spawn(ContainerBundle {
-                transform: Transform {
-                    translation: constants::INVISIBLE_POSITION,
-                    rotation: Quat::from_rotation_z(random::<f32>() * PI),
-                    ..Default::default()
-                },
-                ..Default::default()
-            })
-            .with(Gate {})
-            .with(position)
-            .current_entity()
-            .unwrap();
-
-        spawn_poll(commands, &resources, gate, length);
-        spawn_poll(commands, &resources, gate, -length);
-        // childrenはpositionもってないので、transformationから算出する
-
-        commands
-            .spawn(PbrBundle {
-                mesh: resources.bar_mesh.clone(),
-                material: resources.bar_material.clone(),
-                transform: Transform {
-                    scale: Vec3 {
-                        x: length,
-                        y: BAR_DIAMETER,
-                        z: BAR_DIAMETER,
-                    },
-                    ..Default::default()
-                },
-                ..Default::default()
-            })
-            .with(Bar {})
-            .with(Parent(gate));
+            commands
+                .spawn(handles.gate_bundle(length))
+                .insert(Bar {})
+                .insert(position)
+                .with_children(|mut bar| {
+                    spawn_poll(&mut bar, length, &handles);
+                    spawn_poll(&mut bar, -length, &handles);
+                });
+        }
     }
     None
 }
 
-fn spawn_poll(commands: &mut Commands, resources: &Res<ModResources>, gate: Entity, length: f32) {
-    // https://github.com/bevyengine/bevy/blob/master/examples/ecs/hierarchy.rs
+fn spawn_poll(commands: &mut ChildBuilder, length: f32, handles: &Res<asset::Handles>) {
     commands
-        .spawn(PbrBundle {
-            mesh: resources.poll_mesh.clone(),
-            material: resources.poll_material.clone(),
-            transform: Transform::from_translation(Vec3 {
-                x: length / 2.0,
-                y: 0.0,
-                z: 0.0,
-            }),
-            global_transform: GlobalTransform::from_translation(constants::INVISIBLE_POSITION),
-            ..Default::default()
-        })
-        .with(Poll {})
-        .with(Parent(gate));
+        .spawn(handles.gate_poll_mesh_bundle(length))
+        .insert(Poll {});
 }
 
-fn gate_position(length: f32, head_position: &Position) -> Position {
-    loop {
+fn gate_position(
+    length: f32,
+    gates: &Vec<(&Position, f32)>,
+    head_position: &Position,
+) -> Option<Position> {
+    for _ in 0..10 {
         let position = Position {
-            x: random::<f32>() * (constants::BOARD_X_SIZE - length)
-                - (constants::BOARD_X_BORDER - length / 2.0),
-            y: random::<f32>() * (constants::BOARD_Y_SIZE - length)
-                - (constants::BOARD_Y_BORDER - length / 2.0),
+            x: random::<f32>() * (BOARD_X_SIZE - length) - (BOARD_X_BORDER - length / 2.0),
+            y: random::<f32>() * (BOARD_Y_SIZE - length) - (BOARD_Y_BORDER - length / 2.0),
+            z: GATE_Z,
             visible: true,
         };
 
-        if head_position.distance(&position) > GATE_NOT_SPAWN_DISTANCE_TO_HEAD {
-            return position;
+        if head_position.distance(&position) > GATE_NOT_SPAWN_DISTANCE_TO_HEAD
+            && gates.iter().all(|(other_position, other_length)| {
+                position.distance(other_position) > (length + other_length) / 2.0
+            })
+        {
+            return Some(position);
         }
     }
+    None
 }
 
-fn on_game_start(
-    commands: &mut Commands,
-    (events, mut reader): (Res<Events<GameStart>>, Local<EventReader<GameStart>>),
-    query: Query<Entity, With<Gate>>,
+pub fn on_game_start(
+    mut commands: Commands,
+    mut start_reader: EventReader<event::GameStart>,
+    bar_query: Query<Entity, With<Bar>>,
 ) {
-    for _ in reader.iter(&events) {
-        for entity in query.iter() {
-            commands.despawn_recursive(entity);
+    for _ in start_reader.read() {
+        for entity in bar_query.iter() {
+            commands.entity(entity).despawn_recursive();
         }
     }
 }

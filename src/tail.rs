@@ -3,152 +3,84 @@ use crate::*;
 pub struct ModPlugin;
 
 impl Plugin for ModPlugin {
-    fn build(&self, app: &mut AppBuilder) {
-        app.init_resource::<ModResources>()
-            .add_system_to_stage(
-                stage::POST_UPDATE,
-                move_tail_system.system().chain(void.system()),
-            )
-            .add_system_to_stage(stage::POST_UPDATE, purged_tail_system.system())
-            .add_system_to_stage(stage::POST_UPDATE, rotate_tail_system.system())
-            .add_system_to_stage(stage::RECEIVE_EVENT, on_game_start.system())
-            .add_system_to_stage(
-                stage::RECEIVE_EVENT,
-                on_through_gate.system().chain(void.system()),
-            )
-            .add_system_to_stage(stage::RECEIVE_EVENT, on_miss.system().chain(void.system()));
-    }
+    fn build(&self, _app: &mut App) {}
 }
 
-struct ModResources {
-    forward_axis: Vec3,
-    base_quaternion: Quat,
-    spin_axis: Vec3,
-    mesh: Handle<Mesh>,
-    material: Handle<StandardMaterial>,
-    purged_material: Handle<StandardMaterial>,
-}
-
-impl FromResources for ModResources {
-    fn from_resources(resources: &Resources) -> Self {
-        let mut meshes = resources.get_mut::<Assets<Mesh>>().unwrap();
-        let mut materials = resources.get_mut::<Assets<StandardMaterial>>().unwrap();
-        Self {
-            forward_axis: Vec3 {
-                x: 0.0,
-                y: 0.0,
-                z: -1.0,
-            },
-            base_quaternion: Quat::from_axis_angle(
-                Vec3 {
-                    x: 1.0,
-                    y: -1.0,
-                    z: 0.0,
-                }
-                .normalize(),
-                -Vec2 { x: 1.0, y: 0.0 }.angle_between(Vec2 { x: 1.0, y: 1.0 }),
-            ),
-            spin_axis: Vec3 {
-                x: 1.0,
-                y: 1.0,
-                z: 1.0,
-            }
-            .normalize(),
-            mesh: meshes.add(Mesh::from(shape::Cube { size: TAIL_SIZE })),
-            material: materials.add(TAIL_COLOR.into()),
-            purged_material: materials.add(PURGED_COLOR.into()),
-        }
-    }
-}
-
-struct Spinner {
-    direction: Vec2,
-    margin: f64,
-}
-
+#[derive(Component)]
 pub struct LivingTail {
+    pub direction: Vec2,
     pub index: usize,
 }
 
-struct PurgedTail {
-    remove_at: f64,
+#[derive(Component)]
+pub struct PurgedTail {
+    direction: Vec2,
+    removed_at: f64,
     speed: f32,
 }
 
-fn on_game_start(
-    commands: &mut Commands,
-    resources: Res<ModResources>,
-    (events, mut reader): (Res<Events<GameStart>>, Local<EventReader<GameStart>>),
-) {
-    for _ in reader.iter(&events) {
-        for i in 0..INITIAL_CENTIPEDE_LENGTH {
-            spawn_tail(commands, &resources, i);
+pub fn on_game_start(mut commands: Commands, mut start_reader: EventReader<event::GameStart>) {
+    for _ in start_reader.read() {
+        for index in 0..INITIAL_CENTIPEDE_LENGTH {
+            tail_bundle(&mut commands, index);
         }
     }
 }
 
-fn on_through_gate(
-    commands: &mut Commands,
+pub fn on_through_gate(
+    mut commands: Commands,
     mut centipede_container: ResMut<CentipedeContainer>,
-    resources: Res<ModResources>,
-    (events, mut reader): (Res<Events<ThroughGate>>, Local<EventReader<ThroughGate>>),
+    mut through_gate_reader: EventReader<event::ThroughGate>,
 ) -> Option<()> {
-    let mut centipede = centipede_container.alive_mut()?;
+    let centipede = centipede_container.alive_mut()?;
 
-    for _ in reader.iter(&events) {
-        spawn_tail(commands, &resources, centipede.tail_count);
+    for _ in through_gate_reader.read() {
+        tail_bundle(&mut commands, centipede.tail_count);
         centipede.tail_count += 1;
     }
     None
 }
 
-fn spawn_tail(commands: &mut Commands, resources: &Res<ModResources>, index: usize) {
+pub fn tail_bundle(commands: &mut Commands, index: usize) {
     commands
-        .spawn(PbrBundle {
-            mesh: resources.mesh.clone(),
-            material: resources.material.clone(),
-            transform: Transform {
-                translation: constants::INVISIBLE_POSITION,
-                ..Default::default()
+        .spawn(SpriteBundle {
+            sprite: Sprite {
+                color: TAIL_COLOR,
+                custom_size: Some(TAIL_SIZE),
+                ..default()
             },
             ..Default::default()
         })
-        .with(Position::default(false))
-        .with(LivingTail { index })
-        .with(Spinner {
-            direction: Vec2 { x: 0.0, y: 0.0 },
-            margin: index as f64 * 0.2,
+        .insert(Position::default(false, CENTIPEDE_Z))
+        .insert(LivingTail {
+            index,
+            direction: Vec2::default(),
         });
 }
 
-fn on_miss(
-    commands: &mut Commands,
+pub fn on_miss(
+    mut commands: Commands,
     mut centipede_container: ResMut<CentipedeContainer>,
     time: Res<Time>,
-    resources: Res<ModResources>,
-    (eat_tail_events, mut eat_tail_reader): (Res<Events<EatTail>>, Local<EventReader<EatTail>>),
-    (crush_poll_events, mut crush_poll_reader): (
-        Res<Events<CrushPoll>>,
-        Local<EventReader<CrushPoll>>,
-    ),
-    mut living_tail_query: Query<(Entity, &LivingTail)>,
+    mut eat_tail_reader: EventReader<event::EatTail>,
+    mut crush_poll_reader: EventReader<event::CrushPoll>,
+    mut living_tail_query: Query<(Entity, &LivingTail, &mut Sprite)>,
 ) -> Option<()> {
-    let mut centipede = centipede_container.alive_mut()?;
+    let centipede = centipede_container.alive_mut()?;
 
-    for _ in crush_poll_reader.iter(&crush_poll_events) {
+    for _ in crush_poll_reader.read() {
         let original_count = centipede.tail_count;
         centipede.tail_count = (centipede.tail_count as f32 / 2.0).floor() as usize;
         purge_tail(
-            commands,
+            &mut commands,
             &time,
-            &resources,
             &centipede,
             original_count,
             &mut living_tail_query,
         )
     }
 
-    for event in eat_tail_reader.iter(&eat_tail_events) {
+    for event in eat_tail_reader.read() {
         if event.tail_index >= centipede.tail_count {
             continue;
         }
@@ -156,9 +88,8 @@ fn on_miss(
         centipede.tail_count = event.tail_index;
 
         purge_tail(
-            commands,
+            &mut commands,
             &time,
-            &resources,
             &centipede,
             original_count,
             &mut living_tail_query,
@@ -170,16 +101,15 @@ fn on_miss(
 fn purge_tail(
     commands: &mut Commands,
     time: &Time,
-    resources: &ModResources,
     centipede: &Alive,
     original_count: usize,
-    tail_query: &mut Query<(Entity, &LivingTail)>,
+    tail_query: &mut Query<(Entity, &LivingTail, &mut Sprite)>,
 ) {
     if original_count <= centipede.tail_count {
         return;
     }
 
-    for (entity, tail) in tail_query.iter_mut() {
+    for (entity, tail, mut sprite) in tail_query.iter_mut() {
         if tail.index < centipede.tail_count {
             continue;
         }
@@ -190,23 +120,21 @@ fn purge_tail(
             0.0
         };
 
-        commands.remove::<(LivingTail, Handle<StandardMaterial>)>(entity);
-        commands.insert(
-            entity,
-            (
-                PurgedTail {
-                    remove_at: time.seconds_since_startup() + 2.5,
-                    speed: centipede.speed * purged_index_ratio,
-                },
-                resources.purged_material.clone(),
-            ),
-        );
+        sprite.color = PURGED_COLOR;
+        commands
+            .entity(entity)
+            .remove::<LivingTail>()
+            .insert(PurgedTail {
+                direction: tail.direction,
+                removed_at: time.elapsed_seconds_f64() + 2.5,
+                speed: centipede.speed * purged_index_ratio,
+            });
     }
 }
 
-fn move_tail_system(
+pub fn move_tail_system(
     centipede_container: Res<CentipedeContainer>,
-    mut tail_query: Query<(&mut Position, &LivingTail, &mut Spinner)>,
+    mut tail_query: Query<(&mut Position, &mut Transform, &mut LivingTail)>,
 ) -> Option<()> {
     let centipede = centipede_container.alive()?;
 
@@ -232,59 +160,48 @@ fn move_tail_system(
         prev_position = Some(position.clone());
     }
 
-    for (mut position, tail, mut spinner) in tail_query.iter_mut() {
+    for (mut position, mut transform, mut tail) in tail_query.iter_mut() {
         match tail_positions.get(tail.index) {
             Some(tail_position) => {
-                spinner.direction = Vec2 {
+                tail.direction = Vec2 {
                     x: tail_position.x - position.x,
                     y: tail_position.y - position.y,
                 };
                 position.x = tail_position.x;
                 position.y = tail_position.y;
                 position.visible = true;
+                if tail.index > 0 {
+                    match tail_positions.get(tail.index - 1) {
+                        Some(prev_tail_position) => {
+                            transform.rotation = tail_position.head_to(*prev_tail_position);
+                        }
+                        None => {}
+                    }
+                } else {
+                    if let Some(head_position) = centipede.position_history.last() {
+                        transform.rotation = tail_position.head_to(*head_position);
+                    }
+                }
             }
             None => {}
         }
     }
     None
 }
-
-fn rotate_tail_system(
+pub fn purged_tail_system(
+    mut commands: Commands,
     time: Res<Time>,
-    rotations: Res<ModResources>,
-    mut query: Query<(&mut Transform, &Spinner)>,
+    mut query: Query<(Entity, &mut Position, &PurgedTail)>,
 ) {
-    for (mut transform, spinner) in query.iter_mut() {
-        // 進行方向に合わせる
-        let to_forward = Quat::from_axis_angle(
-            rotations.forward_axis,
-            spinner.direction.angle_between(Vec2 { x: 1.0, y: 1.0 }),
-        );
-
-        // 頂点が前方に来るように
-        let tilt = rotations.base_quaternion;
-
-        // 時間経過で回転させる
-        let spin = Quat::from_axis_angle(
-            rotations.spin_axis,
-            (time.seconds_since_startup() * 1.0 + spinner.margin) as f32,
-        );
-
-        // 合成する
-        transform.rotation = to_forward * tilt * spin;
-    }
-}
-
-fn purged_tail_system(
-    commands: &mut Commands,
-    time: Res<Time>,
-    mut query: Query<(Entity, &mut Position, &mut Spinner, &PurgedTail)>,
-) {
-    for (entity, mut position, spinner, purged_tail) in query.iter_mut() {
-        if time.seconds_since_startup() > purged_tail.remove_at {
-            commands.despawn_recursive(entity);
+    for (entity, mut position, purged_tail) in query.iter_mut() {
+        if time.elapsed_seconds_f64() > purged_tail.removed_at {
+            commands.entity(entity).despawn_recursive();
         } else {
-            position.move_to_with_sec(spinner.direction, purged_tail.speed, time.delta_seconds());
+            position.move_to_with_sec(
+                purged_tail.direction,
+                purged_tail.speed,
+                time.delta_seconds(),
+            );
         }
     }
 }

@@ -2,6 +2,7 @@ use crate::*;
 // 各pluginで共通して使用するstruct等
 
 // プレイヤー・キャラクター。死んでるときがあるので、enumを持つだけ
+#[derive(Resource)]
 pub struct CentipedeContainer {
     pub centipede: Centipede,
 }
@@ -65,11 +66,13 @@ impl Alive {
                 Position {
                     x: -1000.0,
                     y: 0.0,
+                    z: CENTIPEDE_Z,
                     visible: true,
                 },
                 Position {
                     x: 0.0,
                     y: 0.0,
+                    z: CENTIPEDE_Z,
                     visible: true,
                 },
             ],
@@ -93,18 +96,20 @@ pub struct CircularMove {
 }
 
 // X: 左右(右が大きい)、Y:上下(上が大きい)、中心が0の座標
-#[derive(Default, Copy, Clone, PartialEq, Debug)]
+#[derive(Component, Copy, Clone, Default, PartialEq, Debug)]
 pub struct Position {
     pub x: f32,
     pub y: f32,
+    pub z: f32,
     pub visible: bool,
 }
 
 impl Position {
-    pub fn default(visible: bool) -> Self {
+    pub fn default(visible: bool, z: f32) -> Self {
         Self {
             x: 0.0,
             y: 0.0,
+            z,
             visible,
         }
     }
@@ -122,6 +127,7 @@ impl Position {
         Position {
             x: vec2.x,
             y: vec2.y,
+            z: self.z,
             visible: self.visible,
         }
     }
@@ -137,6 +143,23 @@ impl Position {
     pub fn move_to_with_sec(&mut self, direction: Vec2, speed: f32, delta_seconds: f32) {
         self.move_to_with_distance(direction, speed * delta_seconds);
     }
+
+    pub fn translation(self) -> Vec3 {
+        return Vec3::new(self.x, self.y, 0.0);
+    }
+
+    pub fn head_to(self, other: Position) -> Quat {
+        let diff = self.translation() - other.translation();
+        let angle = diff.y.atan2(diff.x);
+        return Quat::from_axis_angle(Vec3::new(0., 0., 1.), angle);
+    }
+
+    pub fn info(self) {
+        info!(
+            "{}",
+            format!("x:{} y:{} z:{}", self.x, self.y, self.visible)
+        );
+    }
 }
 
 impl From<Position> for Vec2 {
@@ -150,6 +173,7 @@ impl From<Vec3> for Position {
         Position {
             x: v.x,
             y: v.y,
+            z: v.z,
             visible: v.z > 0.0,
         }
     }
@@ -167,20 +191,14 @@ fn intersect(x1: &Position, x2: &Position, y1: &Position, y2: &Position) -> bool
         < 0.0
 }
 
+pub fn distance_2d(a: Vec3, b: Vec3) -> f32 {
+    ((b.x - a.x).powf(2.0) + (b.y - a.y).powf(2.0)).sqrt()
+}
+
 // 子要素を持つだけのコンテナバンドル
 #[derive(Bundle)]
 pub struct ContainerBundle {
     pub transform: Transform,
     pub global_transform: GlobalTransform,
 }
-
-impl Default for ContainerBundle {
-    fn default() -> Self {
-        Self {
-            transform: Transform::from_translation(INVISIBLE_POSITION),
-            global_transform: GlobalTransform::from_translation(INVISIBLE_POSITION),
-        }
-    }
-}
-
 pub fn void(_: In<Option<()>>) {}
