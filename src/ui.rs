@@ -103,7 +103,7 @@ pub fn fps_update_system(
 ) {
     for mut text in fps_query.iter_mut() {
         if let Some(fps) = diagnostics
-            .get(FrameTimeDiagnosticsPlugin::FPS)
+            .get(&FrameTimeDiagnosticsPlugin::FPS)
             .and_then(|fps| fps.smoothed())
         {
             text.sections = vec![TextSection {

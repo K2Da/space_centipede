@@ -74,11 +74,11 @@ pub fn setup_system(
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
     commands.insert_resource(Handles {
-        gate_poll_mesh: meshes.add(shape::Circle::new(POLL_SIZE).into()).into(),
+        gate_poll_mesh: meshes.add(Circle::new(POLL_SIZE)).into(),
         gate_poll_material: materials.add(ColorMaterial::from(POLL_COLOR)),
-        head_mesh: meshes.add(shape::Circle::new(HEAD_SIZE).into()).into(),
+        head_mesh: meshes.add(Circle::new(HEAD_SIZE)).into(),
         head_material: materials.add(ColorMaterial::from(HEAD_COLOR)),
-        center_marker_mesh: meshes.add(shape::Circle::new(3.0).into()).into(),
+        center_marker_mesh: meshes.add(Circle::new(3.0)).into(),
         center_marker_material: materials.add(ColorMaterial::from(Color::PURPLE)),
     });
 }

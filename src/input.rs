@@ -19,7 +19,7 @@ pub struct CursorState {
 
 // bevyのResから、情報を読み取り、CursorStateを更新する
 pub fn read_input_system(
-    mouse_input: Res<Input<MouseButton>>,
+    mouse_input: Res<ButtonInput<MouseButton>>,
     screen_state: Res<ScreenState>,
     mut cursor_state: ResMut<CursorState>,
     mut cursor_reader: EventReader<CursorMoved>,
