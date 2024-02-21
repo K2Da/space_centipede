@@ -10,11 +10,11 @@ mod gate;
 mod head;
 mod input;
 mod interact;
+mod score;
 mod space;
 mod tail;
 mod ui;
 mod util;
-
 fn main() {
     App::new()
         .add_plugins((
@@ -28,6 +28,7 @@ fn main() {
             gate::ModPlugin {},
             asset::ModPlugin {},
             interact::ModPlugin {},
+            score::ModPlugin {},
         ))
         .add_systems(
             Startup,
