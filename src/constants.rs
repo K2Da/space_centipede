@@ -1,3 +1,4 @@
+use bevy::prelude::TextStyle;
 use bevy::{prelude::Vec2, render::color::Color};
 
 pub const INITIAL_CENTIPEDE_LENGTH: usize = 30;
@@ -26,17 +27,15 @@ pub const GATE_SPAWN_PER_SECONDS: f64 = 2.0;
 pub const FONT: &str = "fonts/FiraSans-Bold.ttf";
 
 pub const FPS_PREFIX: &str = "FPS:";
-pub const FPS_SIZE: f32 = 24.0;
-pub const FPS_COLOR: Color = Color::WHITE;
 
 pub const SCORE_PREFIX: &str = "SCORE:";
 pub const SPEED_PREFIX: &str = "SPEED:";
 pub const SPEED_UP: f32 = 3.0;
 pub const HIGH_SCORE_PREFIX: &str = "HIGH:";
 pub const TAIL_PREFIX: &str = "TAIL:";
-pub const SCORE_SIZE: f32 = 24.0;
-pub const SCORE_COLOR: Color = Color::WHITE;
 pub const GATE_NOT_SPAWN_DISTANCE_TO_HEAD: f32 = 100.0;
+pub const UI_FONT_SIZE: f32 = 24.0;
+pub const UI_TEXT_COLOR: Color = Color::WHITE;
 
 pub const PANEL_Z: f32 = 10.0;
 pub const GATE_Z: f32 = 20.0;

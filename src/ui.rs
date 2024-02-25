@@ -8,7 +8,8 @@ impl Plugin for ModPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Status>()
             .add_plugins(FrameTimeDiagnosticsPlugin)
-            .insert_resource(Time::<Fixed>::from_seconds(1.0));
+            .insert_resource(Time::<Fixed>::from_seconds(1.0))
+            .add_systems(Update, button_system);
     }
 }
 
@@ -23,10 +24,18 @@ pub struct Status {
     score: usize,
     high_score: usize,
 }
-
+fn text_style() -> TextStyle {
+    TextStyle {
+        font_size: UI_FONT_SIZE,
+        color: UI_TEXT_COLOR,
+        ..default()
+    }
+}
 pub fn setup_system(mut commands: Commands, asset_server: Res<AssetServer>) {
-    let font = asset_server.load("fonts/FiraSans-Bold.ttf");
-
+    let style = Style {
+        margin: UiRect::all(Val::Px(5.0)),
+        ..default()
+    };
     commands
         .spawn(NodeBundle {
             style: Style {
@@ -40,38 +49,34 @@ pub fn setup_system(mut commands: Commands, asset_server: Res<AssetServer>) {
         .with_children(|parent| {
             parent
                 .spawn((
-                    TextBundle::from_section(
-                        FPS_PREFIX.to_string(),
-                        TextStyle {
-                            font_size: FPS_SIZE,
-                            color: FPS_COLOR,
-                            font: font.clone(),
-                        },
-                    )
-                    .with_style(Style {
-                        margin: UiRect::all(Val::Px(5.)),
-                        ..default()
-                    }),
+                    TextBundle::from_section(FPS_PREFIX.to_string(), text_style())
+                        .with_style(style.clone()),
                     Label,
                 ))
                 .insert(FpsText);
             parent
                 .spawn((
-                    TextBundle::from_section(
-                        SCORE_PREFIX.to_string(),
-                        TextStyle {
-                            font_size: SCORE_SIZE,
-                            color: SCORE_COLOR,
-                            font,
-                        },
-                    )
-                    .with_style(Style {
-                        margin: UiRect::all(Val::Px(5.)),
-                        ..default()
-                    }),
+                    TextBundle::from_section(SCORE_PREFIX.to_string(), text_style())
+                        .with_style(style.clone()),
                     Label,
                 ))
                 .insert(ScoreText);
+            parent
+                .spawn(ButtonBundle {
+                    style: Style {
+                        width: Val::Px(150.0),
+                        height: Val::Px(UI_FONT_SIZE + 5.0),
+                        border: UiRect::all(Val::Px(5.0)),
+                        justify_content: JustifyContent::Center,
+                        align_items: AlignItems::Center,
+                        ..default()
+                    },
+                    border_color: BorderColor(Color::BLACK),
+                    ..default()
+                })
+                .with_children(|parent| {
+                    parent.spawn(TextBundle::from_section("Pause", text_style()));
+                });
         });
 }
 
@@ -108,11 +113,7 @@ pub fn fps_update_system(
         {
             text.sections = vec![TextSection {
                 value: format!("{:} {:.2}", FPS_PREFIX, fps).into(),
-                style: TextStyle {
-                    font_size: SCORE_SIZE,
-                    color: SCORE_COLOR,
-                    ..Default::default()
-                },
+                style: text_style(),
             }];
         }
     }
@@ -125,18 +126,35 @@ pub fn score_update_system(
 ) {
     if let Centipede::Alive(centipede) = &centipede_container.centipede {
         for mut text in score_query.iter_mut() {
-            text.sections = vec![
-            TextSection {
+            text.sections = vec![TextSection {
                 value: format!(
-                    "{:} {:.0}              {:} {:.0}              {:} {:.0}              {:} {:.0}",
-                    SPEED_PREFIX, centipede.speed, TAIL_PREFIX, centipede.tail_count, SCORE_PREFIX, status.score, HIGH_SCORE_PREFIX, status.high_score
-                ).into(),
-                style: TextStyle {
-                    font_size: SCORE_SIZE,
-                    color: SCORE_COLOR,
-                    ..Default::default()
-                },
+                    "{:} {:.0}  {:} {:.0}  {:} {:.0}  {:} {:.0}",
+                    SPEED_PREFIX,
+                    centipede.speed,
+                    TAIL_PREFIX,
+                    centipede.tail_count,
+                    SCORE_PREFIX,
+                    status.score,
+                    HIGH_SCORE_PREFIX,
+                    status.high_score
+                )
+                .into(),
+                style: text_style(),
             }];
+        }
+    }
+}
+
+fn button_system(
+    mut next_state: ResMut<NextState<AppState>>,
+    mut interaction_query: Query<&Interaction, (Changed<Interaction>, With<Button>)>,
+) {
+    for interaction in &mut interaction_query {
+        match *interaction {
+            Interaction::Pressed => {
+                next_state.set(AppState::Menu);
+            }
+            _ => (),
         }
     }
 }

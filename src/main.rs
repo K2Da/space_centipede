@@ -15,8 +15,16 @@ mod space;
 mod tail;
 mod ui;
 mod util;
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, States)]
+enum AppState {
+    InGame,
+    Menu,
+    Result,
+}
 fn main() {
     App::new()
+        .insert_state(AppState::InGame)
         .add_plugins((
             DefaultPlugins {},
             event::ModPlugin {},
@@ -28,14 +36,17 @@ fn main() {
             gate::ModPlugin {},
             asset::ModPlugin {},
             interact::ModPlugin {},
-            score::ModPlugin {},
+            // score::ModPlugin {},
         ))
         .add_systems(
             Startup,
             (asset::setup_system, space::setup_system, ui::setup_system),
         )
         .add_systems(PostStartup, head::setup_system)
-        .add_systems(First, input::read_input_system)
+        .add_systems(
+            First,
+            input::read_input_system.run_if(in_state(AppState::InGame)),
+        )
         .add_systems(
             PreUpdate,
             (
@@ -44,7 +55,8 @@ fn main() {
                 head::select_movement_system.pipe(void),
                 event::game_start_system,
                 event::game_over_system.pipe(void),
-            ),
+            )
+                .run_if(in_state(AppState::InGame)),
         )
         .add_systems(
             Update,
@@ -55,7 +67,8 @@ fn main() {
                     .after(head::move_head_system),
                 tail::purged_tail_system.after(tail::move_tail_system),
                 space::position_system.after(tail::purged_tail_system),
-            ),
+            )
+                .run_if(in_state(AppState::InGame)),
         )
         .add_systems(FixedUpdate, ui::fps_update_system)
         // PostUpdateでGlobalTransformに変換されたあと各種チェック
@@ -73,7 +86,8 @@ fn main() {
                 gate::on_game_start,
                 ui::on_game_start,
                 ui::on_through_gate,
-            ),
+            )
+                .run_if(in_state(AppState::InGame)),
         )
         .run();
 }
